@@ -1,0 +1,23 @@
+# Ficheros de cache de Python
+__pycache__/
+*.pyc
+
+# Base de datos de SQLite
+*.db
+*.db-journal
+
+# Ficheros de log y estado generados en ejecución
+*.log
+
+
+taxi_*_state.json
+customer_*_state.json
+
+# Fichero de entorno con secretos (MUY IMPORTANTE)
+.env
+
+# Metadatos de algunos editores de código
+.vscode/
+.idea/
+
+.sh

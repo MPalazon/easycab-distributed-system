@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>EasyCab - Mapa del Sistema</title>
+    <style>
+        body { font-family: monospace, 'Courier New', Courier; background-color: #1e1e1e; color: #d4d4d4; display: flex; flex-direction: column; align-items: center; padding: 20px; margin: 0; }
+        h1 { color: #6a9955; }
+        .info-panel { display: flex; justify-content: space-around; width: 840px; margin-bottom: 20px; background-color: #252526; padding: 10px; border-radius: 5px; font-size: 1.1em; }
+        .map-container { display: grid; grid-template-columns: repeat(20, 40px); grid-template-rows: repeat(20, 40px); border: 2px solid #4a90e2; width: 802px; height: 802px; }
+        .map-cell { width: 40px; height: 40px; border: 1px solid #333; box-sizing: border-box; display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 14px; position: relative; }
+        .map-cell > * { margin: 1px; }
+        .location { background-color: #007acc; color: white; border-radius: 5px; padding: 2px 4px; z-index: 1; }
+        .client { background-color: #f7b731; color: black; border-radius: 5px; padding: 2px 4px; font-style: italic; z-index: 2; }
+        .taxi { color: white; border-radius: 50%; width: 28px; height: 28px; display: flex; justify-content: center; align-items: center; z-index: 3; border: 1px solid black; }
+        .taxi-running { background-color: #28a745; } /* Verde */
+        .taxi-idle { background-color: #dc3545; } /* Rojo */
+        #error-panel { width: 840px; margin-top: 20px; border: 1px solid #dc3545; padding: 10px; background-color: #3c2a2a; max-height: 150px; overflow-y: auto; }
+        .error-item { color: #f4a0a0; margin: 2px 0; font-size: 14px; border-bottom: 1px solid #555; padding-bottom: 2px; }
+    </style>
+</head>
+<body>
+    <h1>Panel de Control Visual - EasyCab</h1>
+    <div class="info-panel">
+        <div>Estado del Tráfico: <b id="traffic-status">Cargando...</b></div>
+    </div>
+    <div id="map-grid" class="map-container"></div>
+    <div id="error-panel">
+        <h2>Log de Errores del Sistema</h2>
+        <div id="error-log"></div>
+    </div>
+
+    <script>
+        const mapGrid = document.getElementById('map-grid');
+        const trafficStatusEl = document.getElementById('traffic-status');
+        const errorLogEl = document.getElementById('error-log');
+        const gridSize = 20;
+
+        // Pre-crear las celdas una sola vez para mejorar el rendimiento
+        const cells = [];
+        for (let i = 0; i < gridSize * gridSize; i++) {
+            const cell = document.createElement('div');
+            cell.className = 'map-cell';
+            mapGrid.appendChild(cell);
+            cells.push(cell);
+        }
+
+        function renderMap(data) {
+            // Limpiamos el contenido de todas las celdas
+            cells.forEach(cell => cell.innerHTML = '');
+
+            // 1. Dibujar las localizaciones
+            if (data && data.map_locations) {
+                for (const id in data.map_locations) {
+                    const [x, y] = data.map_locations[id];
+                    const index = (y - 1) * gridSize + (x - 1);
+                    if (cells[index]) cells[index].innerHTML += `<span class="location">${id}</span>`;
+                }
+            }
+            
+            // 2. Dibujar los clientes
+            if (data && data.clients) {
+                for (const id in data.clients) {
+                    const client = data.clients[id];
+                    const [x, y] = client.position || [client.pos_x, client.pos_y];
+                    const index = (y - 1) * gridSize + (x - 1);
+                    if (cells[index]) cells[index].innerHTML += `<span class="client">${client.id}</span>`;
+                }
+            }
+
+            // 3. Dibujar los taxis
+            if (data && data.taxis) {
+                for (const id in data.taxis) {
+                    const taxi = data.taxis[id];
+                    const pos = taxi.position || [taxi.pos_x, taxi.pos_y];
+                    const [x, y] = pos;
+                    const index = (y - 1) * gridSize + (x - 1);
+                    if (cells[index]) {
+                        // El color depende del estado: Verde si está en movimiento, Rojo si no.
+                        const isMoving = taxi.status && (taxi.status.includes('GOING') || taxi.status === 'RUNNING');
+                        const statusClass = isMoving ? 'taxi-running' : 'taxi-idle';
+                        cells[index].innerHTML += `<div class="taxi ${statusClass}">${taxi.id}</div>`;
+                    }
+                }
+            }
+        }
+
+        async function fetchStatus() {
+            try {
+                const response = await fetch('/status');
+                if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                const data = await response.json();
+
+                if (data.error) throw new Error(data.error);
+                
+                trafficStatusEl.textContent = data.traffic_status || 'Desconocido';
+                trafficStatusEl.style.color = data.traffic_status === 'OK' ? '#6a9955' : '#dc3545';
+
+                renderMap(data);
+
+                if (data.system_errors && data.system_errors.length > 0) {
+                    errorLogEl.innerHTML = [...data.system_errors].reverse().map(err => 
+                        `<div class="error-item">${err}</div>`
+                    ).join('');
+                } else {
+                    errorLogEl.innerHTML = '<div>No hay errores recientes en el sistema.</div>';
+                }
+
+            } catch (error) {
+                trafficStatusEl.textContent = "Error de Conexión";
+                trafficStatusEl.style.color = '#dc3545';
+                errorLogEl.innerHTML = `<div class="error-item">Error al conectar con API_Central: ${error.message}</div>`;
+            }
+        }
+
+        setInterval(fetchStatus, 2000);
+        fetchStatus();
+    </script>
+</body>
+</html>

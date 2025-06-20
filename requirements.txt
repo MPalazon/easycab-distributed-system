@@ -1,0 +1,6 @@
+kafka-python-ng
+pynput
+flask
+requests
+cryptography
+python-dotenv
